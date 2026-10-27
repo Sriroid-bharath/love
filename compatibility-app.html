@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compatibility Checker</title>
+<style>
+  :root {
+    --bg: #f6eef2;
+    --card: #ffffff;
+    --ink: #2b1830;
+    --muted: #6f5a76;
+    --accent: #c2185b;
+    --accent-2: #5b2a86;
+    --track: #e7d8e2;
+    --radius: 18px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1022;
+      --card: #2a1832;
+      --ink: #f6e9f1;
+      --muted: #b9a2c2;
+      --accent: #ff6fa5;
+      --accent-2: #b98cff;
+      --track: #43285010;
+      --track: #45294f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+  main { width: 100%; max-width: 520px; }
+  h1 { font-size: 2rem; margin: 0 0 6px; line-height: 1.15; }
+  p.sub { margin: 0 0 24px; color: var(--muted); font-family: system-ui, sans-serif; }
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: 0 6px 24px rgba(91, 42, 134, .12);
+  }
+  label, .q { display: block; font-family: system-ui, sans-serif; font-size: .95rem; margin: 16px 0 6px; }
+  input[type=text] {
+    width: 100%; padding: 12px 14px; font-size: 1rem;
+    border: 2px solid var(--track); border-radius: 12px;
+    background: transparent; color: var(--ink);
+  }
+  input[type=text]:focus, input[type=range]:focus-visible, button:focus-visible {
+    outline: 3px solid var(--accent-2); outline-offset: 2px;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .scale { display: flex; align-items: center; gap: 10px; font-family: system-ui, sans-serif; font-size: .8rem; color: var(--muted); }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  .pair { margin-top: 18px; }
+  .pair .q { margin: 0 0 2px; }
+  button {
+    margin-top: 24px; width: 100%; padding: 14px; font-size: 1.05rem;
+    border: 0; border-radius: 12px; cursor: pointer;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    color: #fff; font-family: system-ui, sans-serif; font-weight: 600;
+  }
+  .error { color: var(--accent); font-family: system-ui, sans-serif; font-size: .9rem; min-height: 1.2em; margin-top: 12px; }
+  #result { display: none; margin-top: 24px; text-align: center; }
+  .ring { position: relative; width: 170px; height: 170px; margin: 0 auto 12px; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .num {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 2.4rem; font-weight: bold;
+  }
+  .verdict { font-size: 1.4rem; margin: 0 0 6px; }
+  .detail { color: var(--muted); font-family: system-ui, sans-serif; margin: 0; }
+  .bars { text-align: left; margin-top: 20px; font-family: system-ui, sans-serif; font-size: .85rem; }
+  .bar { margin: 10px 0; }
+  .bar .t { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .bar .b { height: 8px; background: var(--track); border-radius: 8px; overflow: hidden; }
+  .bar .b i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 8px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .ring circle.fg { transition: stroke-dashoffset .9s ease; }
+    .bar .b i { transition: width .9s ease; }
+  }
+  @media (max-width: 420px) { .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Compatibility checker</h1>
+  <p class="sub">Enter two names, rate how each of you feels about a few things, and see how well you match.</p>
+
+  <div class="card">
+    <div class="row">
+      <div><label for="n1">Your name</label><input id="n1" type="text" autocomplete="off"></div>
+      <div><label for="n2">Their name</label><input id="n2" type="text" autocomplete="off"></div>
+    </div>
+
+    <div id="questions"></div>
+
+    <div class="error" id="err" role="alert"></div>
+    <button id="go" type="button">Check compatibility</button>
+
+    <section id="result" aria-live="polite">
+      <div class="ring">
+        <svg width="170" height="170" viewBox="0 0 170 170" aria-hidden="true">
+          <circle cx="85" cy="85" r="74" fill="none" stroke="var(--track)" stroke-width="12"/>
+          <circle class="fg" id="fg" cx="85" cy="85" r="74" fill="none" stroke="var(--accent)"
+                  stroke-width="12" stroke-linecap="round" stroke-dasharray="465" stroke-dashoffset="465"/>
+        </svg>
+        <div class="num" id="score">0%</div>
+      </div>
+      <h2 class="verdict" id="verdict"></h2>
+      <p class="detail" id="detail"></p>
+      <div class="bars" id="bars"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+  // Each topic has a slider for both people (1 = low, 10 = high)
+  const topics = [
+    { id: "social",  label: "Going out and socializing", low: "Homebody", high: "Social" },
+    { id: "plans",   label: "Planning vs. going with the flow", low: "Spontaneous", high: "Planner" },
+    { id: "talk",    label: "Talking about feelings", low: "Private", high: "Open" },
+    { id: "adv",     label: "Trying new things", low: "Familiar", high: "Adventurous" }
+  ];
+
+  const qWrap = document.getElementById("questions");
+  topics.forEach(t => {
+    qWrap.insertAdjacentHTML("beforeend", `
+      <div class="pair">
+        <div class="q">${t.label}</div>
+        <div class="scale"><span>You</span><span>${t.low}</span>
+          <input type="range" min="1" max="10" value="5" id="${t.id}-a" aria-label="${t.label} - you">
+          <span>${t.high}</span></div>
+        <div class="scale"><span>Them</span><span>${t.low}</span>
+          <input type="range" min="1" max="10" value="5" id="${t.id}-b" aria-label="${t.label} - them">
+          <span>${t.high}</span></div>
+      </div>`);
+  });
+
+  // Small deterministic hash so the same names always give the same result
+  function hash(str) {
+    let h = 0;
+    for (const c of str) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    return h;
+  }
+
+  function verdictFor(s) {
+    if (s >= 85) return ["A great match", "You line up on almost everything that matters."];
+    if (s >= 70) return ["Very compatible", "You share a lot, and your differences balance each other."];
+    if (s >= 50) return ["Good potential", "Some differences to work through, but there is common ground."];
+    if (s >= 30) return ["Opposites", "You see things differently. Talk openly to make it work."];
+    return ["A challenge", "Your styles clash in several areas. Patience will matter."];
+  }
+
+  document.getElementById("go").addEventListener("click", () => {
+    const n1 = document.getElementById("n1").value.trim();
+    const n2 = document.getElementById("n2").value.trim();
+    const err = document.getElementById("err");
+    if (!n1 || !n2) { err.textContent = "Enter both names to continue."; return; }
+    err.textContent = "";
+
+    // Score each topic: smaller gap between answers = higher match
+    const parts = topics.map(t => {
+      const a = +document.getElementById(t.id + "-a").value;
+      const b = +document.getElementById(t.id + "-b").value;
+      return { label: t.label, pct: Math.round((1 - Math.abs(a - b) / 9) * 100) };
+    });
+    const avg = parts.reduce((s, p) => s + p.pct, 0) / parts.length;
+
+    // Names add a small stable "chemistry" adjustment of -8 to +8
+    const key = [n1.toLowerCase(), n2.toLowerCase()].sort().join("|");
+    const chem = (hash(key) % 17) - 8;
+    const score = Math.max(1, Math.min(99, Math.round(avg + chem)));
+
+    const [title, text] = verdictFor(score);
+    document.getElementById("verdict").textContent = `${n1} and ${n2}: ${title}`;
+    document.getElementById("detail").textContent = text;
+    document.getElementById("bars").innerHTML = parts.map(p => `
+      <div class="bar"><div class="t"><span>${p.label}</span><span>${p.pct}%</span></div>
+      <div class="b"><i style="width:0" data-w="${p.pct}%"></i></div></div>`).join("");
+
+    const res = document.getElementById("result");
+    res.style.display = "block";
+    const fg = document.getElementById("fg");
+    fg.style.strokeDashoffset = 465;
+    document.getElementById("score").textContent = score + "%";
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      fg.style.strokeDashoffset = 465 * (1 - score / 100);
+      document.querySelectorAll(".bar i").forEach(i => i.style.width = i.dataset.w);
+    }));
+    res.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+</script>
+</body>
+</html>
